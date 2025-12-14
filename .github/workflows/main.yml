@@ -9,7 +9,7 @@ env:
 
 jobs:
 # =========================
-# 1️⃣ BUILD & PUSH IMAGE
+# 1️⃣ BUILD & PUSH
 # =========================
   build:
     runs-on: ubuntu-latest
@@ -17,25 +17,20 @@ jobs:
       image-tag: ${{ github.sha }}
 
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Login to Azure
-        uses: azure/login@v1
+      - uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Login to ACR (CLI)
-        run: |
-          az acr login --name ${{ secrets.ACR_NAME }}
+      - run: az acr login --name ${{ secrets.ACR_NAME }}
 
-      - name: Build and push Docker image
-        run: |
-          docker build -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/$IMAGE_NAME:${{ github.sha }} .
-          docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/$IMAGE_NAME:${{ github.sha }}
+      - run: |
+          docker build -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }} .
+          docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
 
 # =========================
-# 2️⃣ DEPLOY TO ACI
+# 2️⃣ DEPLOY ACI
 # =========================
   deploy-aci:
     needs: build
@@ -43,18 +38,16 @@ jobs:
     environment: production
 
     steps:
-      - name: Login to Azure
-        uses: azure/login@v1
+      - uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy to ACI
-        uses: azure/aci-deploy@v1
+      - uses: azure/aci-deploy@v1
         with:
           resource-group: ${{ secrets.RESOURCE_GROUP }}
           location: koreacentral
           name: aci-flaskapp
-          image: ${{ secrets.REGISTRY_LOGIN_SERVER }}/$IMAGE_NAME:${{ needs.build.outputs.image-tag }}
+          image: ${{ secrets.REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image-tag }}
           dns-name-label: flaskapp-${{ github.run_number }}
           ports: 5000
           registry-login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
@@ -62,7 +55,7 @@ jobs:
           registry-password: ${{ secrets.REGISTRY_PASSWORD }}
 
 # =========================
-# 3️⃣ DEPLOY TO AKS
+# 3️⃣ DEPLOY AKS
 # =========================
   deploy-aks:
     needs: build
@@ -70,22 +63,21 @@ jobs:
     environment: production
 
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Login to Azure
-        uses: azure/login@v1
+      - uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Set AKS context
-        uses: azure/aks-set-context@v3
+      - uses: azure/aks-set-context@v3
         with:
           resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
           cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
 
-      # 최초 배포 대응
-      - name: Deploy to AKS
-        run: |
+      - run: |
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
+
+      - run: |
+          kubectl set image deployment/flaskapp \
+            flaskapp=${{ secrets.REGISTRY_LOGIN_SERVER }}/${{ env.IMAGE_NAME }}:${{ needs.build.outputs.image-tag }}
