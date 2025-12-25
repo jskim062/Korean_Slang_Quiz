@@ -9,7 +9,7 @@ This is a simple Python console quiz game about Korean slang abbreviations.
 - Counts and displays the number of correct and incorrect answers.  
   
 ## How to Use  
-  
+    
 1. Run the script in a Python (3.x) environment.  
 2. For each abbreviation shown, type the full phrase (no spaces).  
 3. After 3 questions, your score will be displayed.  
